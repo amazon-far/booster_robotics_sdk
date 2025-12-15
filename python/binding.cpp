@@ -403,13 +403,7 @@ PYBIND11_MODULE(booster_robotics_sdk_python, m) {
     py::class_<robot::b1::B1LocoClient>(m, "B1LocoClient", R"pbdoc(
         B1LocoClient is a client interface for controlling the B1 robot's locomotion and other high-level functionalities.
         It provides methods to send API requests, change robot modes, move the robot, control its head and hands, and more.
-        .def("Init", py::overload_cast<const std::string &>(&robot::b1::B1LocoClient::Init), py::arg("robot_name"), R"pbdoc(
-                /**
-                 * @brief Initialize the B1LocoClient with a specific robot name.
-                 * 
-                 * @param robot_name The name of the robot to initialize the client for.
-                 */
-            )pbdoc")
+    )pbdoc")
         .def(py::init<>())
         .def("Init", [](robot::b1::B1LocoClient &client) {
             py::gil_scoped_release release;
