@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-# Add deadsnakes PPA for Python 3.8 if needed
-RUN if [ "$PYTHON_VERSION" = "3.8" ]; then \
+# Add deadsnakes PPA for Python 3.8 and 3.11 if needed
+RUN if [ "$PYTHON_VERSION" = "3.8" ] || [ "$PYTHON_VERSION" = "3.11" ]; then \
         add-apt-repository ppa:deadsnakes/ppa -y && \
         apt-get update; \
     fi

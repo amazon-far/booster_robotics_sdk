@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "booster_robotics_sdk"
 version = "0.1.0"
 description = "Booster robotics SDK bindings"
-requires-python = ">=3.8"
+requires-python = ">=3.8,<3.12"
 
 [tool.setuptools.packages.find]
 include = ["booster_robotics_sdk"]
