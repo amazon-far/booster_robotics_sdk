@@ -10,8 +10,6 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     python3-pip \
-    python3-pybind11 \
-    pybind11-dev \
     patchelf \
     lsb-release \
     wget \
@@ -36,7 +34,7 @@ RUN apt-get update && apt-get install -y \
 ENV Python3_EXECUTABLE=/usr/bin/python${PYTHON_VERSION}
 ENV PYTHON_EXECUTABLE=/usr/bin/python${PYTHON_VERSION}
 
-RUN python -m pip install build pybind11 pybind11-stubgen
+RUN python -m pip install build "pybind11>=2.10.0" pybind11-stubgen
 
 WORKDIR /work
 COPY . .
