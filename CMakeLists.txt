@@ -39,7 +39,14 @@ if(BUILD_PYTHON_BINDING)
     )
 
     include_directories(${Python3_INCLUDE_DIRS})
-    find_package(pybind11 CONFIG REQUIRED)
+    
+    # Use pip-installed pybind11 instead of system package
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_cmake_dir())"
+        OUTPUT_VARIABLE pybind11_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    find_package(pybind11 CONFIG REQUIRED HINTS ${pybind11_DIR})
 
     python3_add_library(booster_robotics_sdk_python MODULE python/binding.cpp WITH_SOABI)
 
