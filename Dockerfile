@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Add deadsnakes PPA for Python 3.8 and 3.11 if needed
-RUN if [ "$PYTHON_VERSION" = "3.8" ] || [ "$PYTHON_VERSION" = "3.11" ]; then \
+RUN if [ "$PYTHON_VERSION" = "3.8" ] || [ "$PYTHON_VERSION" = "3.11" ] || [ "$PYTHON_VERSION" = "3.12" ]; then \
         add-apt-repository ppa:deadsnakes/ppa -y && \
         apt-get update; \
     fi
@@ -34,7 +34,10 @@ RUN apt-get update && apt-get install -y \
 ENV Python3_EXECUTABLE=/usr/bin/python${PYTHON_VERSION}
 ENV PYTHON_EXECUTABLE=/usr/bin/python${PYTHON_VERSION}
 
-RUN python -m pip install build "pybind11>=2.10.0" pybind11-stubgen
+# Python 3.12+ removed distutils; use ensurepip to bootstrap pip
+RUN python -m ensurepip --upgrade 2>/dev/null || true \
+    && python -m pip install --upgrade pip \
+    && python -m pip install build "pybind11>=2.10.0" pybind11-stubgen
 
 WORKDIR /work
 COPY . .
