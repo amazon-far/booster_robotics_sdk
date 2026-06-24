@@ -1,15 +1,83 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "booster_robotics_sdk"
+# PyPI distribution name. Prefixed with "far-" to avoid colliding with any
+# upstream Booster project. The IMPORT name is unchanged:
+# `from booster_robotics_sdk_python import ...`.
+name = "far-booster-robotics-sdk"
 version = "0.1.0"
-description = "Booster robotics SDK bindings"
+description = "Booster Robotics SDK Python bindings (FAR fork)"
+readme = "README.md"
 requires-python = ">=3.8,<3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "FAR" }]
+keywords = ["booster", "robotics", "sdk", "dds"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Developers",
+]
 
+[project.urls]
+Homepage = "https://github.com/amazon-far/booster_robotics_sdk"
+Repository = "https://github.com/amazon-far/booster_robotics_sdk"
+
+# The compiled extension module (booster_robotics_sdk_python) and vendored DDS
+# .so files live in the `booster_robotics_sdk` import package. Distribution
+# name and import name are intentionally different.
 [tool.setuptools.packages.find]
 include = ["booster_robotics_sdk"]
 
+# Top-level shim that re-exposes the compiled extension as the historical
+# top-level module name `booster_robotics_sdk_python` (see the .py for why).
+[tool.setuptools]
+py-modules = ["booster_robotics_sdk_python"]
+
 [tool.setuptools.package-data]
-booster_robotics_sdk = ["booster_robotics_sdk_python.cpython-*.so", "libddsc.so*", "libddscxx.so*", "libfastcdr.so*", "libfastrtps.so*", "libtinyxml2.so*"]
+booster_robotics_sdk = ["*.so", "*.so.*", "*.pyi", "py.typed"]
+
+# ---------------------------------------------------------------------------
+# cibuildwheel: builds compliant manylinux wheels in CI.
+#
+# setuptools only packages a prebuilt .so here — it does not compile. So we
+# compile the pybind11 module per-Python in `before-build`, stage it plus the
+# vendored FastDDS libraries, then auditwheel bundles them via LD_LIBRARY_PATH.
+# ---------------------------------------------------------------------------
+[tool.cibuildwheel]
+build = "cp38-* cp310-* cp311-* cp312-*"
+# The vendored FastDDS libraries are prebuilt glibc binaries, so only build
+# manylinux wheels. musllinux (Alpine/musl) cannot link them and lacks glibc
+# headers like execinfo.h.
+skip = "*-musllinux*"
+build-frontend = "build"
+before-build = "bash {project}/scripts/cibw_before_build.sh {project}"
+# NOTE: no `test-command` here — wheels are import-tested on ubuntu-latest by the
+# `test_wheels` CI job after the build (a real-distro check). See unitree_sdk2's
+# pyproject for the manylinux-vs-build-image rationale behind this convention.
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
+# Build on the AlmaLinux 9 (glibc 2.34, GCC 14) manylinux image — the newest
+# AlmaLinux base manylinux publishes for x86_64/aarch64. The vendored libs pull
+# in GLIBCXX_3.4.30, so auditwheel tags the result manylinux_2_35 (see
+# repair-wheel-command below); older base images can't load the bundled libs.
+manylinux-x86_64-image = "manylinux_2_34"
+manylinux-aarch64-image = "manylinux_2_34"
+# Make the vendored libraries discoverable by the loader and auditwheel. Dir
+# names (x86_64/aarch64) match `uname -m`; only the matching one exists.
+# Inside the manylinux container the project is mounted at /project. The package
+# dir (/project/booster_robotics_sdk) is where before-build stages every runtime
+# dep — including libtinyxml2.so.9, which libfastrtps NEEDs and which auditwheel
+# must resolve on this path (it does not search inside the wheel itself).
+environment = { LD_LIBRARY_PATH = "$LD_LIBRARY_PATH:/usr/local/lib:/project/booster_robotics_sdk:/project/third_party/lib/x86_64:/project/third_party/lib/aarch64:/project/lib/x86_64:/project/lib/aarch64" }
+# auditwheel inspects the actual symbols: the vendored libfastrtps pulls in
+# GLIBCXX_3.4.30 (GCC 12), which auditwheel maps to the manylinux_2_35 policy.
+# The build runs on the AlmaLinux 9 (glibc 2.34) image, but a 2_35 tag is a
+# looser claim than the symbols require, so repair succeeds. Pin it explicitly
+# so the output tag is deterministic. `uname -m` gives the x86_64/aarch64 suffix.
+repair-wheel-command = "auditwheel repair --plat manylinux_2_35_$(uname -m) -w {dest_dir} {wheel}"

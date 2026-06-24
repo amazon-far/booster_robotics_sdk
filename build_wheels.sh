@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+# -----------------------------------------------------------------------------
+# DEPRECATED for publishing. Produces non-manylinux `linux_*` wheels named
+# `booster_robotics_sdk-*`, which PyPI rejects. The canonical, PyPI-ready build
+# is now GitHub Actions (.github/workflows/release.yml) via cibuildwheel,
+# producing `far_booster_robotics_sdk-*-manylinux_2_34_*`. See PUBLISHING.md.
+# Kept for local use.
+# -----------------------------------------------------------------------------
+
 # Extract version from pyproject.toml
 BOOSTER_TAG=$(grep '^version = ' pyproject.toml | cut -d'"' -f2)
 
