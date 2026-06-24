@@ -53,17 +53,26 @@ if(BUILD_PYTHON_BINDING)
     target_compile_definitions(booster_robotics_sdk_python PRIVATE VERSION_INFO=${PROJECT_VERSION})
 
     find_program(PYBIND11_STUBGEN_EXECUTABLE pybind11-stubgen)
-    if(NOT PYBIND11_STUBGEN_EXECUTABLE)
-        message(FATAL_ERROR "pybind11-stubgen not found")
+
+    # Best-effort type-stub generation. This is wrapped so it never fails the
+    # build: during wheel builds (cibuildwheel) the freshly linked module is not
+    # yet importable from the build tree (its vendored DDS .so dependencies are
+    # staged into the package dir afterwards), and the wheel's stubs are produced
+    # separately by scripts/cibw_before_build.sh. `${CMAKE_BINARY_DIR}` is used
+    # (not a hardcoded `build/`) so this works for any build directory name.
+    if(PYBIND11_STUBGEN_EXECUTABLE)
+        add_custom_command(
+            TARGET booster_robotics_sdk_python
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH}
+                    ${PYBIND11_STUBGEN_EXECUTABLE} -o ${CMAKE_BINARY_DIR} booster_robotics_sdk_python || true
+            VERBATIM
+        )
     endif()
 
-    add_custom_command(
-        TARGET booster_robotics_sdk_python
-        POST_BUILD
-        COMMAND PYTHONPATH=${CMAKE_SOURCE_DIR}/build:/${PYTHONPATH} pybind11-stubgen -o ${CMAKE_SOURCE_DIR}/build booster_robotics_sdk_python
-    )
-
     install(TARGETS booster_robotics_sdk_python LIBRARY DESTINATION ${PYTHON_SITE_PACKAGES})
-    install(FILES ${CMAKE_SOURCE_DIR}/build/booster_robotics_sdk_python.pyi DESTINATION ${PYTHON_SITE_PACKAGES})    
+    # Install the stub file only if it was actually generated (it is optional).
+    install(FILES ${CMAKE_BINARY_DIR}/booster_robotics_sdk_python.pyi
+            DESTINATION ${PYTHON_SITE_PACKAGES} OPTIONAL)
 endif()
 
