@@ -1,6 +1,24 @@
 # Booster Robotics SDK
 Booster Robotics SDK aims to provide a simple and easy-to-use interface for developers to control the Booster Robotics products. 
 
+## Python package (PyPI)
+
+The Python bindings are published to PyPI as **`far-booster-sdk`** (the
+`far-` prefix avoids colliding with upstream Booster packages). The import name
+is unchanged:
+
+```bash
+pip install far-booster-sdk
+```
+
+```python
+from booster_robotics_sdk_python import ChannelFactory, B1LocoClient  # import name unchanged
+```
+
+Wheels are prebuilt `manylinux` binaries (Python 3.8/3.9/3.10/3.11/3.12, x86_64
+and aarch64) with the FastDDS runtime libraries bundled in — no compiler or
+system DDS install required.
+
 ## Prebuild environment
 * OS  (Ubuntu 22.04 LTS)  
 * CPU  (aarch64 and x86_64)   
