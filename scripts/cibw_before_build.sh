@@ -14,7 +14,11 @@ cd "$PROJECT"
 ARCH="$(uname -m)"
 echo "[before-build] arch=$ARCH python=$(python -c 'import sys; print(sys.version)')"
 
-pip install "pybind11>=2.10" pybind11-stubgen
+# tomli is the read backport of the stdlib `tomllib`, which only exists on
+# Python 3.11+. cibuildwheel runs this hook inside every target interpreter
+# (cp38–cp312), so on 3.8–3.10 `import tomllib` fails; install tomli as a
+# fallback. (pip is happy to install it everywhere; it's tiny and pure-Python.)
+pip install "pybind11>=2.10" pybind11-stubgen tomli
 
 PYBIND11_DIR="$(python -c 'import pybind11; print(pybind11.get_cmake_dir())')"
 PYBIND11_INCLUDE="$(python -c 'import pybind11; print(pybind11.get_include())')"
@@ -23,16 +27,19 @@ PY_EXE="$(command -v python)"
 # Read distribution name/version from pyproject so we can satisfy the
 # project(${SKBUILD_PROJECT_NAME} VERSION ${SKBUILD_PROJECT_VERSION}) call
 # without depending on scikit-build-core being the active build frontend.
-SK_NAME="$(python - <<'PY'
-import tomllib
-print(tomllib.load(open("pyproject.toml","rb"))["project"]["name"])
+# Use stdlib tomllib (3.11+) when available, else the tomli backport installed
+# above — this hook runs under every target interpreter, including 3.8–3.10.
+read -r SK_NAME SK_VERSION <<EOF
+$(python - <<'PY'
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+proj = tomllib.load(open("pyproject.toml", "rb"))["project"]
+print(proj["name"], proj["version"])
 PY
-)"
-SK_VERSION="$(python - <<'PY'
-import tomllib
-print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])
-PY
-)"
+)
+EOF
 
 # The CMakeLists links the vendored static + DDS libs by bare name, so they must
 # be on the linker search path. install.sh keys off lsb_release (Ubuntu only)
