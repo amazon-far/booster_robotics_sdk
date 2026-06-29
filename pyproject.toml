@@ -70,8 +70,19 @@ archs = ["x86_64", "aarch64"]
 # AlmaLinux base manylinux publishes for x86_64/aarch64. The vendored libs pull
 # in GLIBCXX_3.4.30, so auditwheel tags the result manylinux_2_35 (see
 # repair-wheel-command below); older base images can't load the bundled libs.
-manylinux-x86_64-image = "manylinux_2_34"
-manylinux-aarch64-image = "manylinux_2_34"
+# Use the FULL quay.io image reference, not the bare "manylinux_2_34" alias:
+# cibuildwheel 2.21 only knows the aliases manylinux2014 / _2_24 / _2_28, so it
+# passes "manylinux_2_34" through verbatim and tries to `docker pull` it from
+# Docker Hub (where it does not exist) → "pull access denied".
+#
+# Tag is pinned to 2025.09.13-1 ON PURPOSE: it is the last manylinux_2_34 build
+# that still bundles CPython 3.8 (cp38 was dropped from the image after 3.8 went
+# EOL — newer tags ship only cp39+). Since `build` includes cp38-*, a newer tag
+# would fail with "no such interpreter". If cp38 is dropped from the build set,
+# this can move to a current tag. Verified both x86_64 and aarch64 bundle
+# cp38–cp312 at this tag.
+manylinux-x86_64-image = "quay.io/pypa/manylinux_2_34_x86_64:2025.09.13-1"
+manylinux-aarch64-image = "quay.io/pypa/manylinux_2_34_aarch64:2025.09.13-1"
 # Make the vendored libraries discoverable by the loader and auditwheel. Dir
 # names (x86_64/aarch64) match `uname -m`; only the matching one exists.
 # Inside the manylinux container the project is mounted at /project. The package

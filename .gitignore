@@ -16,3 +16,11 @@ build/
 install/
 .vscode
 .debug*
+
+# Python build / cibuildwheel artifacts
+build_cibw/
+wheelhouse/
+*.egg-info/
+__pycache__/
+*.pyc
+uv.lock

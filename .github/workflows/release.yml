@@ -31,10 +31,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Run cibuildwheel from the runner's own Python rather than the
+      # pypa/cibuildwheel action. The action bootstraps itself by running
+      # actions/setup-python to fetch Python 3.12, which fails on these
+      # self-hosted AWS CodeBuild runners (the version isn't in the toolcache or
+      # setup-python's manifest). cibuildwheel only needs ANY host interpreter
+      # >=3.8 to orchestrate; every target-version wheel is still built inside
+      # the manylinux Docker containers, so the host Python version is irrelevant.
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21
         env:
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          PY="$(command -v python3 || command -v python)"
+          echo "Driving cibuildwheel with host interpreter: $PY ($("$PY" --version))"
+          # Isolated venv so we don't fight PEP 668 / the system site-packages.
+          "$PY" -m venv /tmp/cibw-venv
+          /tmp/cibw-venv/bin/python -m pip install --upgrade pip
+          # Pin the same cibuildwheel series the action used (2.21.x).
+          /tmp/cibw-venv/bin/python -m pip install "cibuildwheel==2.21.*"
+          /tmp/cibw-venv/bin/cibuildwheel --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
         with:
@@ -59,20 +75,24 @@ jobs:
           name: wheels-${{ matrix.arch }}
           path: dist
       - name: Install and import (native arch)
+        # Pull the stock python image from ECR Public's Docker Hub mirror
+        # (public.ecr.aws/docker/library/python) rather than Docker Hub directly.
+        # All 10 matrix legs share one egress IP on the self-hosted CodeBuild
+        # runners, and anonymous Docker Hub pulls hit its unauthenticated rate
+        # limit ("toomanyrequests") — the mirror is the official image with no
+        # such limit (and is same-network-fast from AWS). The `-slim-bookworm`
+        # pin (glibc 2.36) is still required: the wheels are force-tagged
+        # manylinux_2_35 (glibc 2.35), so the default 3.8-slim (bullseye, glibc
+        # 2.31) would reject them; 3.9–3.12 slim already default to bookworm.
         run: |
-          set -e
+          set -euo pipefail
           py="${{ matrix.python }}"; cp_tag="cp${py//./}"
           whl=$(ls dist/far_booster_sdk-*-${cp_tag}-${cp_tag}-manylinux*_${{ matrix.arch }}.whl | head -1)
-          # Pin to the bookworm-based slim image (glibc 2.36) for EVERY python.
-          # The wheels are force-tagged manylinux_2_35 (glibc 2.35) in pyproject;
-          # the default `python:3.8-slim` is bullseye (glibc 2.31) and pip would
-          # refuse to install a 2_35 wheel there, reddening the 3.8 leg. 3.10–3.12
-          # slim already default to bookworm, so pinning is a no-op for them and
-          # keeps the matrix deterministic.
-          echo "Testing $(basename "$whl") on python:${py}-slim-bookworm (${{ matrix.arch }})"
+          img="public.ecr.aws/docker/library/python:${py}-slim-bookworm"
+          echo "Testing $(basename "$whl") on $img (${{ matrix.arch }})"
           # Assert the historical top-level import used by all examples, plus the
           # package import, both resolve on the native arch.
-          docker run --rm -v "$PWD/dist:/wh:ro" "python:${py}-slim-bookworm" bash -c "
+          docker run --rm -v "$PWD/dist:/wh:ro" "$img" bash -c "
             set -e
             pip install -q /wh/$(basename "$whl")
             python -c 'from booster_robotics_sdk_python import ChannelFactory, B1LocoClient; print(\"top-level import OK\")'
