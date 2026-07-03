@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # upstream Booster project. The IMPORT name is unchanged:
 # `from booster_robotics_sdk_python import ...`.
 name = "far-booster-sdk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Booster Robotics SDK Python bindings (FAR fork)"
 readme = "README.md"
 # Binary-only distribution (no sdist fallback): every interpreter allowed here

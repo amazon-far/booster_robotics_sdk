@@ -112,18 +112,37 @@ fi
   [ -f libfastcdr.so ]  && ln -sf libfastcdr.so  libfastcdr.so.2     || true
 )
 
-# Generate type stubs (best-effort; never fail the build over stubs). The module
-# must be importable here, which requires its staged DDS deps + libtinyxml2.so.9
-# on the loader path. Wrapped in `if` so a stubgen/import failure is non-fatal
-# under `set -e`.
-if PYTHONPATH="booster_robotics_sdk:${PYTHONPATH:-}" \
-   LD_LIBRARY_PATH="$PWD/booster_robotics_sdk:${LD_LIBRARY_PATH:-}" \
-   pybind11-stubgen -o "$BUILD_DIR/stubs" booster_robotics_sdk_python >/dev/null 2>&1; then
-    cp -v "$BUILD_DIR/stubs/booster_robotics_sdk_python.pyi" booster_robotics_sdk/ 2>/dev/null || true
+# Stage the type stub. The authoritative, hand-maintained stub lives at
+# python/booster_robotics_sdk_python.pyi and is the source of truth for the public
+# API — prefer it so the wheel is reproducible and does not depend on
+# pybind11-stubgen succeeding inside the manylinux container (importing the freshly
+# linked extension there is fragile: it needs the staged DDS deps + libtinyxml2.so.9
+# on the loader path). pybind11-stubgen is only a fallback for a checkout that
+# somehow lacks the committed stub, and it must actually produce the file — no
+# silent skip.
+if [ -f python/booster_robotics_sdk_python.pyi ]; then
+    cp -v python/booster_robotics_sdk_python.pyi booster_robotics_sdk/booster_robotics_sdk_python.pyi
+    echo "[before-build] staged committed stub python/booster_robotics_sdk_python.pyi"
+elif PYTHONPATH="booster_robotics_sdk:${PYTHONPATH:-}" \
+     LD_LIBRARY_PATH="$PWD/booster_robotics_sdk:${LD_LIBRARY_PATH:-}" \
+     pybind11-stubgen -o "$BUILD_DIR/stubs" booster_robotics_sdk_python \
+     && [ -f "$BUILD_DIR/stubs/booster_robotics_sdk_python.pyi" ]; then
+    cp -v "$BUILD_DIR/stubs/booster_robotics_sdk_python.pyi" booster_robotics_sdk/booster_robotics_sdk_python.pyi
+    echo "[before-build] staged stubgen-generated stub"
 else
-    echo "[before-build] stub generation skipped (non-fatal)"
+    echo "[before-build] ERROR: no booster_robotics_sdk_python.pyi available (committed stub missing and stubgen failed)" >&2
+    exit 1
 fi
 
+# Ship py.typed ONLY alongside a real .pyi. A py.typed marker without a stub makes
+# mypy treat the compiled extension as a typed-but-empty module and report
+# `attr-defined` on every symbol downstream (exactly the holosoma CI break this
+# fixes) — worse than shipping no type info at all. Fail loudly rather than
+# regress that.
+if [ ! -f booster_robotics_sdk/booster_robotics_sdk_python.pyi ]; then
+    echo "[before-build] ERROR: refusing to write py.typed without a .pyi stub" >&2
+    exit 1
+fi
 touch booster_robotics_sdk/py.typed
 echo "[before-build] staged files:"
 ls -la booster_robotics_sdk/
